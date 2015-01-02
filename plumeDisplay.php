@@ -3,63 +3,38 @@
 		<title>PHP Display Tests</title>
 	</head>
 	<body>
-		<p>
-			<form method="post" action="#" name="PlumeSelectForm">
-				<?php
-					// Get available plume output graphics directories by date
-					$dateDirs = glob('../plumes/*', GLOB_ONLYDIR);
-					// Empty dates array to populate with options for the drop-down menu.
-					$dates = array();
-					// Create datetime objects from directory names and create options for a drop-down menu.
-					foreach ($dateDirs as $dir) {
-						//echo substr($dir,count($dir)-9,8);
-						// The datetime object.
-						$date = DateTime::createFromFormat('!Ymd',substr($dir,count($dir)-9,8));
-						// TODO: 2 lines of debug code to be removed later
-						echo '<p>' . $dir . '</p>';
-						echo '<p>' . $date->format('Y-m-d') . '</p>';
-						// Add the option to the array.
-						array_push($dates,$date->format('Y-m-d'));
+		<?php
+			// Create default selection based on latest available graphics.
+			// Populate form and summon latest graphic.
+			// First, find the latest date by rsort of a list of date directories.
+			// Next, find the latest time by rsort of a list of hour directories.
+			// Finally, select the first alphabetical station graphic by sort of a list of graphics.
+			$plumeDates = array();
+			$plumeHours = array();
+			$plumePaths = array();
+			foreach(glob('../plumes/*',GLOB_ONLYDIR) as $dateDir){
+				//echo '<p>' . $dateDir . '</p>';
+				$dateString = substr($dateDir, count($dateDir) - 9, 8);
+				array_push($plumeDates,$dateString);
+				$plumePaths[$dateString] = array();
+				foreach(glob($dateDir . '/*',GLOB_ONLYDIR) as $hourDir){
+					//echo '<p>' . $hourDir . '</p>';
+					$hourString = substr($hourDir, count($hourDir) - 4, 3);
+					array_push($plumeHours,$hourString);
+					$plumePaths[$dateString][$hourString] = array();
+					foreach(glob($hourDir . '/*') as $plumeImagePath){
+						//echo '<p>' . $plumeImagePath . '</p>';
+						array_push($plumePaths[$dateString][$hourString],$plumeImagePath);
 					}
-					// Sort dates by most recent first.
-					rsort($dates);
-				?>
-				<select name="dd1" id="dd1" onchange="PlumeSelectForm.submit();">
-					<!--<option selected="selected">Choose</option>-->
-					<?php
-						foreach($dates as $date) {?>
-							<?php
-								if(array_search($date,$dates) === 0){?>
-									<option selected="<?php echo $date ?>"><?php echo $date ?></option>
-							<?php
-								}
-								else {?>
-									<option value="<?php echo $date ?>"><?php echo $date ?></option>
-							<?php
-								}
-							?>
-					<?php
-						} 
-					?>
-				</select>
-				<?php
-					$hourDirs = glob('../plumes/' . substr($_POST['dd1'],0,4) . substr($_POST['dd1'],5,2) . substr($_POST['dd1'],8,2) . '/*', GLOB_ONLYDIR);
-					$hours = array();
-					foreach ($hourDirs as $dir) {
-						echo '<p> ' . $dir . '</p>';
-						echo '@@@' . substr($dir,count($dir)-4,3);
-						
-					}
-				?>
-				<!--
-				<select name="dd2" id="dd2">
-					?php 
-						foreach($times as $time) {?>
-							<option value="?php echo $time ?>">?php echo $time ?></option>
-					?php
-						}
-					?>
-				-->
-		</p>
+				}
+			}
+			rsort($plumeDates);
+			rsort($plumeHours);
+			echo '<p> Latest Date: ' . $plumeDates[0] . '</p>';
+			echo '<p> Latest Hour: ' . $plumeHours[0] . '</p>';
+			//foreach($plumeImagePaths as $pip){
+			//	echo '<p>' . $pip . '</p>';
+			//}
+		?>
 	</body>
 </html>
