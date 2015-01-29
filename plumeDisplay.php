@@ -5,118 +5,64 @@
 	<body>
 		<noscript>WARNING: This page requires javascript to function.</noscript>
 		<?php
-			/*
-			 * This script generates menus for and displays plume diagrams
-			 *   stored according to the following:
-			 *   ./plumes/<YYYYMMDD>/<HH>Z/<place name>,<state>.png
-			 */
-			// DEBUG is used for printing information helpful for debugging.
-			const DEBUG = false;
-			/*
-			 * Create default selection based on latest available graphics.
-			 * Populate the form and summon the latest graphic.
-			 * 
-			 * First, create and fill the following arrays:
-			 * plumeDates is a single-level array with available dates
-			 * plumeHours is a 2-level array with available times accessible by
-			 *             date in the form YYYYMMDD. Times are stored in the
-			 *             form HHZ, where Z is the Z character.
-			 * plumeStations is a 3-level array with available station names
-			 *             accessible by date YYYYMMDD and hour HHZ where Z is
-			 *             the Z character. Station names are stored in the
-			 *             form <place name>,<state> e.g. Scranton,PA
-			 *             
-			 * Using rsort() on the list of date directory names puts the
-			 *   latest date at index 0.
-			 * Using rsort() on the list of hour directories puts the latest
-			 *   hour at index 0.
-			 * Using sort() on the list of station names puts the first
-			 *   alphabetical station at index 0.
-			 * By using sorts in this way, the order that the OS returns the
-			 *   directories using glob won't matter.
-			 *   
-			 * TODO: Distinguish between dates for GEFS and SREF systems.
-			 *         May change directory structure to accomodate this.
-			 *
-			 */
-			$plumeDates = array();
-			$plumeHours = array();
-			$plumeStations = array();
-			// 3-level foreach loop defining all of these arrays.
-			foreach(glob('./plumes/*',GLOB_ONLYDIR) as $dateDir){
-				if(DEBUG){
-					echo '<p> DT' . $dateDir . '</p>';
-				}
-				// Date will be stored as its directory name without path.
-				$dateString = substr($dateDir, count($dateDir) - 9, 8);
-				if(DEBUG){
-					echo '<p> DTS' . $dateString . '</p>';
-				}
-				// Add the date to the list of dates.
-				array_push($plumeDates,$dateString);
-				// Create second level arrays for hours and stations with the
-				//   current date as an index.
-				$plumeHours[$dateString] = array();
-				$plumeStations[$dateString] = array();
-				foreach(glob($dateDir . '/*',GLOB_ONLYDIR) as $hourDir){
-					if(DEBUG){
-						echo '<p> HR' . $hourDir . '</p>';
-					}
-					// Hour will be stored as its directory name without path.
-					$hourString = substr($hourDir, count($hourDir) - 4, 3);
-					// Add the hour to the list of hours for this date.
-					array_push($plumeHours[$dateString],$hourString);
-					// Create third level array for stations with the current
-					//   date and hour as indexes.
-					$plumeStations[$dateString][$hourString] = array();
-					foreach(glob($hourDir . '/*') as $plumeImagePath){
-						if(DEBUG){
-							echo '<p> IMG' . $plumeImagePath . '</p>';
-						}
-						// The station name is stored as its place name and
-						//   state without path or file extension.
-						$stationName = substr(substr($plumeImagePath,22),0,count(substr($plumeImagePath,22)) - 5);
-						// Add the station name to the list of station names for
-						//   this date and hour.
-						array_push($plumeStations[$dateString][$hourString],$stationName);
-					}
-				}
-			}
-			// Sort dates by latest first.
-			//   Latest date may be accessed by $plumeDates[0]
-			rsort($plumeDates);
+		/*
+		 * This script generates menus for and displays plume diagrams
+		 *   stored according to the following:
+		 *   ./plumes/<YYYYMMDD>/<HH>Z/<place name>,<state>.png
+		 */
+		// DEBUG is used for printing information helpful for debugging.
+		const DEBUG = false;
+		$paths = glob('./plumes/*/*/*/*');
+		// 0: ., 1: plumes, 2: Date, 3: Hour, 4: Type, 5: File
+		$plumeDates = array();
+		$plumeHours = array();
+		$plumeTypes = array();
+		$plumeStations = array();
+		foreach($paths as $path){
+			$parts = explode('/', $path);
+			$date = $parts[2];
+			$hour = $parts[3];
+			$type = $parts[4];
+			$file = $parts[5];
+			$stationName = substr($file, 0, count($file) - 5);
 			if(DEBUG){
-				echo '<p> Latest Date: ' . $plumeDates[0] . '</p>';
+				echo '<p>' . $date . ' ' . $hour . ' ' . $type . ' ' . $stationName . '</p>';
 			}
-			// Sort hours by latest first. 
-			//   Latest may be accessed by $plumeHours[<date>][0]
-			//   where <date> is a string date from $plumeDates form: YYYYMMDD.
-			rsort($plumeHours[$plumeDates[0]]);
-			if(DEBUG){
-				echo '<p> Latest Hour: ' . $plumeHours[$plumeDates[0]][0] . '</p>';
+			if(!in_array($date,$plumeDates)){
+				if(DEBUG){
+					echo '<p> Adding Date: ' . $date . '</p>';
+				}
+				array_push($plumeDates, $date);
+				$plumeHours[$date] = array();
+				$plumeTypes[$date] = array();
+				$plumeStations[$date] = array();
 			}
-			/*
-			 * Explanation of form creation. . .
-			 * When the page is first loaded, the dropdown menus should be
-			 *   initialized with the latest date and time selected, along with
-			 *   the first alphabetical station in the station list for that
-			 *   date and time.
-			 *   The latest date may be accessed using $plumeDates[0]
-			 *   The latest hour may be accessed using $plumeHours[<date>][0]
-			 *   The first alphabetical station may be accessed using
-			 *     $plumeStations[<date>][<hour>][0]
-			 *   The following substring may be used to get the station name
-			 *     from a path to a plume image file.
-			 *   substr(substr($plumeImagePath,22),0,count(substr($plumeImagePath,22)) - 5)
-			 *   
-			 * When the form is submitted, the page is reloaded with POST data.
-			 *   This POST data may be parsed to determine selected options
-			 *   as the dropdown menus are being created.
-			 * 
-			 * Note that the form elements use javascript to submit the form
-			 *   every time an element is changed.
-			 */
-			// Begin form definition.
+			if(!in_array($hour,$plumeHours[$date])){
+				if(DEBUG){
+					echo '<p> Adding Hour: ' . $hour . '</p>';
+				}
+				array_push($plumeHours[$date], $hour);
+				$plumeTypes[$date][$hour] = array();
+				$plumeStations[$date][$hour] = array();
+			}
+			if(!in_array($type,$plumeTypes[$date][$hour])){
+				if(DEBUG){
+					echo '<p> Adding Type: ' . $type . '</p>';
+				}
+				array_push($plumeTypes[$date][$hour], $type);
+				$plumeStations[$date][$hour][$type] = array();
+			}
+			if(!in_array($stationName,$plumeStations[$date][$hour][$type])){
+				if(DEBUG){
+					echo '<p> Adding Station: ' . $stationName . '</p>';
+				}
+				array_push($plumeStations[$date][$hour][$type], $stationName);
+			}
+		}
+		// Sort top level arrays by latest first.
+		rsort($plumeDates);
+		rsort($plumeHours[$plumeDates[0]]);
+		sort($plumeTypes[$plumeDates[0]][$plumeHours[$plumeDates[0]][0]]);
 		?>
 		<p>
 			<form method="post" action="#" name="PlumeSelectForm">
@@ -170,15 +116,49 @@
 						}
 					?>
 				</select>
+				<select name="PlumeSelectType" onchange="PlumeSelectForm.submit();">
+					<?php
+						/*
+						 * Define a dropdown menu for available graphics based
+						 *  on the initial or selected date and time.
+						 * function defineTypes() eliminates duplicate code.
+						 */
+						function defineTypes($date_,$hour_,$plumeTypes_){
+							foreach($plumeTypes_[$date_][$hour_] as $type){
+								if(isset($_POST['PlumeSelectType']) && $_POST['PlumeSelectType'] === $type){?>
+									<option value="<?php echo $type ?>" selected="selected"><?php echo $type ?></option>
+								<?php
+								}
+								else{?>
+									<option value="<?php echo $type ?>"><?php echo $type ?></option>
+								<?php
+								}
+							}
+						}
+						// Check if post data is available, use defaults if not.
+						if(isset($_POST['PlumeSelectHour']) and isset($_POST['PlumeSelectHour'])){
+							// Check if selected hour is available.
+							if(in_array($_POST['PlumeSelectHour'],$plumeHours[$_POST['PlumeSelectDate']])){
+								defineTypes($_POST['PlumeSelectDate'],$_POST['PlumeSelectHour'],$plumeTypes);
+							}
+							else{
+								defineTypes($_POST['PlumeSelectDate'],$plumeHours[$_POST['PlumeSelectDate']][0],$plumeTypes);
+							}
+						}
+						else{
+							defineTypes($plumeDates[0],$plumeHours[$plumeDates[0]][0],$plumeTypes);
+						}
+					?>
+				</select>
 				<select name="PlumeSelectStation" onchange="PlumeSelectForm.submit();">
 					<?php
 						/*
 						 * Define a dropdown menu for available graphics based
-						 *   on the initial or selected date and time.
+						 *   on the initial or selected date, time and type.
 						 * function defineGraphics() eliminates duplicate code.
 						 */
-						function defineGraphics($date_,$hour_,$plumeStations_){
-							foreach($plumeStations_[$date_][$hour_] as $station){
+						function defineGraphics($date_,$hour_,$type_,$plumeStations_){
+							foreach($plumeStations_[$date_][$hour_][$type_] as $station){
 								if(isset($_POST['PlumeSelectStation']) && $_POST['PlumeSelectStation'] === $station){?>
 									<option value="<?php echo $station ?>" selected="selected"><?php echo $station ?></option>
 								<?php
@@ -198,21 +178,33 @@
 						 */
 						// Case 1:
 						// Check if POST data is available, use defaults if not.
-						if(isset($_POST['PlumeSelectDate']) and isset($_POST['PlumeSelectHour'])){
+						if(isset($_POST['PlumeSelectDate']) and isset($_POST['PlumeSelectHour']) and isset($_POST['PlumeSelectType'])){
+							$dateToUse = $_POST['PlumeSelectDate'];
 							// Check if selected hour is valid. If not, use
 							//   latest available hour.
-							if(in_array($_POST['PlumeSelectHour'],$plumeHours[$_POST['PlumeSelectDate']])){
-								defineGraphics($_POST['PlumeSelectDate'],$_POST['PlumeSelectHour'],$plumeStations);
+							if(in_array($_POST['PlumeSelectHour'],$plumeHours[$dateToUse])){
+								$hourToUse = $_POST['PlumeSelectHour'];
 							}
 							else{
-								defineGraphics($_POST['PlumeSelectDate'],$plumeHours[$_POST['PlumeSelectDate']][0],$plumeStations);
+								$hourToUse = $plumeHours[$dateToUse][0];
+							}
+							// Check if selected type is valid. If not, use
+							//   latest available hour.
+							if(in_array($_POST['PlumeSelectType'],$plumeTypes[$dateToUse][$hourToUse])){
+								$typeToUse = $_POST['PlumeSelectType'];
+							}
+							else{
+								$typeToUse = $plumeTypes[$dateToUse][$hourToUse][0];
 							}
 						}
 						// Case 2:
 						// Use all defaults.
 						else{
-							defineGraphics($plumeDates[0],$plumeHours[$plumeDates[0]][0],$plumeStations);
+							$dateToUse = $plumeDates[0];
+							$hourToUse = $plumeHours[$dateToUse][0];
+							$typeToUse = $plumeTypes[$dateToUse][$hourToUse][0];
 						}
+						defineGraphics($dateToUse,$hourToUse,$typeToUse,$plumeStations);
 					?>
 				</select>
 			</form>
@@ -241,12 +233,19 @@
 					else{
 						$imageHour = $plumeHours[$imageDate][0];
 					}
+					// Check if type is valid.
+					if(in_array($_POST['PlumeSelectType'],$plumeTypes[$imageDate][$imageHour])){
+						$imageType = $_POST['PlumeSelectType'];
+					}
+					else{
+						$imageType = $plumeTypes[$imageDate][$imageHour][0];
+					}
 					// Check if station is valid.
-					if(in_array($_POST['PlumeSelectStation'],$plumeStations[$imageDate][$imageHour])){
+					if(in_array($_POST['PlumeSelectStation'],$plumeStations[$imageDate][$imageHour][$imageType])){
 						$imageStation = $_POST['PlumeSelectStation'];
 					}
 					else{
-						$imageStation = $plumeStations[$imageDate][$imageHour][0];
+						$imageStation = $plumeStations[$imageDate][$imageHour][$imageType][0];
 					}
 				}
 				// Case 2:
@@ -254,9 +253,10 @@
 				else{
 					$imageDate = $plumeDates[0];
 					$imageHour = $plumeHours[$imageDate][0];
-					$imageStation = $plumeStations[$imageDate][$imageHour][0];
+					$imageType = $plumeTypes[$imageDate][$imageHour][0];
+					$imageStation = $plumeStations[$imageDate][$imageHour][$imageType][0];
 				}
-				$imagePath = '../plumes/' . $imageDate . '/' . $imageHour . '/' .  $imageStation . '.png';
+				$imagePath = '../plumes/' . $imageDate . '/' . $imageHour . '/' . $imageType . '/' .  $imageStation . '.png';
 				?>
 				<img src="<?php echo $imagePath?>" alt="Plume Image">
 		</p>
